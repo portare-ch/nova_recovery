@@ -1,0 +1,3 @@
+[submodule "edl"]
+	path = edl
+	url = https://github.com/bkerler/edl.git
