@@ -7,12 +7,9 @@ Verified on 2026-10-23.
 
 **These instructions and recovery files are for the Retroid Pocket Nova only.**
 
-The Nova's current bootloader is [Portare BIOS](https://github.com/portare-ch/BIOS).
-The included backups restore the older ROCKNIX ABL 1.1.8 to `abl_a`/`abl_b`;
-they do not contain Portare BIOS. The steps below cover both options. If Android
-itself is broken, EDL provides a recovery entry point, but repairing Android
-requires firmware and flashing instructions specifically for the Retroid
-Pocket Nova. This kit does not include an Android factory image.
+If Android itself is broken, EDL provides a recovery entry point, but repairing
+Android requires firmware and flashing instructions specifically for the
+Retroid Pocket Nova. This kit does not include an Android factory image.
 
 ## Getting the code
 
@@ -38,18 +35,7 @@ python3.12 -m venv .venv
 .venv/bin/python -m pip install -r edl/requirements.txt
 ```
 
-## Contents
-
-| Path | What |
-|---|---|
-| `backup/abl_a.img`, `backup/abl_b.img` | Both 1 MiB `abl` partitions as read from the Nova: ROCKNIX's ABL 1.1.8, then zeros |
-| `backup/rocknix-abl-1.1.8-SM8550.elf` | The same ROCKNIX image as a file |
-| `backup/xbl_a.img` | The Nova's `xbl_a`, for reference only. Never write it |
-| `backup/SHA256SUMS` | Hashes of the above |
-| `loader/rp6_loader.elf` | SM8550 firehose programmer (sha256 `c522842d…`), see below |
-| `loader/SOURCE-COMMIT` | Commit of the RP6 factory-image repository cited below |
-| `edl/` | bkerler/edl at `1cda1a6`, run with `.venv/bin/python` (Python 3.12) |
-| `edl_config.json` | Cached programmer, serial and supported functions from the tested Nova |
+## EDL programmer
 
 **Provenance of the programmer.** It's byte-identical to `xbl_s_devprg_ns.melf` from
 <https://github.com/strongtz/linux-next/releases/tag/odin2-release>, the
@@ -65,8 +51,8 @@ these devices don't enforce secure boot: in Sahara the Nova reports
 - Holding VOL UP + VOL DOWN while inserting a USB cable reached EDL.
 - The programmer loaded, with no authorisation asked for.
 - `printgpt` on LUN 4 worked.
-- `abl_a` read back equal to `backup/abl_a.img`.
-- `abl_b` was written with `backup/abl_b.img` and read back equal (sha256 `2d4195a0…`).
+- `abl_a` could be read.
+- `abl_b` was written and read back with a matching hash.
 - `reset` left EDL.
 
 ## Entering EDL (9008)
@@ -114,46 +100,28 @@ Continue below to restore ABL. To finish without writing anything, run
 
 ## Restoring the bootloader
 
-To install Portare BIOS, get `abl_signed-SM8550.elf` from the
-[current BIOS release](https://github.com/portare-ch/BIOS/releases/latest)
-and put it in the recovery-kit directory. PortareOS also includes this image
-in `portareos_abl/abl_signed-SM8550.elf` on its SD card's boot partition.
-PortareOS updates write it to both `abl_a` and `abl_b`.
-
-Prepare a copy padded with zeros to the full 1 MiB partition size so that a
-whole-partition read-back can be compared directly:
+The included recovery images contain
+[Portare BIOS v1.4.1](https://github.com/portare-ch/BIOS/releases/tag/v1.4.1),
+padded with zeros to the full 1 MiB partition size. Verify the included files
+before flashing:
 
 ```bash
-.venv/bin/python - <<'PY'
-from pathlib import Path
-image = Path("abl_signed-SM8550.elf").read_bytes()
-if not image.startswith(b"\x7fELF") or len(image) > 1024 * 1024:
-    raise SystemExit("Expected an ABL ELF image no larger than 1 MiB")
-Path("/tmp/abl-recovery.img").write_bytes(image.ljust(1024 * 1024, b"\0"))
-PY
+(cd backup && shasum -a 256 -c SHA256SUMS)
 ```
 
-Alternatively, to restore the included ROCKNIX ABL 1.1.8, skip the download
-and padding above and prepare the recovery image from the backup instead.
-The two included slot backups are identical:
-
-```bash
-cp backup/abl_a.img /tmp/abl-recovery.img
-```
-
-With either recovery image prepared, write and verify both bootloader slots.
+Write and verify both bootloader slots.
 Run each command in order; stop on an error or a hash mismatch, and do not reset:
 
 ```bash
-.venv/bin/python edl/edl.py w abl_a /tmp/abl-recovery.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
+.venv/bin/python edl/edl.py w abl_a backup/abl_a.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
 .venv/bin/python edl/edl.py r abl_a /tmp/abl_a-check.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
-shasum -a 256 /tmp/abl_a-check.img /tmp/abl-recovery.img   # must match before continuing
-.venv/bin/python edl/edl.py w abl_b /tmp/abl-recovery.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
+shasum -a 256 /tmp/abl_a-check.img backup/abl_a.img   # must match before continuing
+.venv/bin/python edl/edl.py w abl_b backup/abl_b.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
 .venv/bin/python edl/edl.py r abl_b /tmp/abl_b-check.img --memory=ufs --lun=4 --loader=loader/rp6_loader.elf
-shasum -a 256 /tmp/abl_b-check.img /tmp/abl-recovery.img   # must match before reset
+shasum -a 256 /tmp/abl_b-check.img backup/abl_b.img   # must match before reset
 ```
 
-Once both read-back hashes match the recovery image, leave EDL:
+Once both read-back hashes match their recovery images, leave EDL:
 
 ```bash
 .venv/bin/python edl/edl.py reset --loader=loader/rp6_loader.elf

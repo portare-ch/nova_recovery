@@ -4,3 +4,7 @@ __pycache__/
 
 # Local virtual environment
 .venv/
+
+# Local development images and test artifacts
+/portare-bios/
+/test743/
