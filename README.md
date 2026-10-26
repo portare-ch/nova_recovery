@@ -101,7 +101,7 @@ Continue below to restore ABL. To finish without writing anything, run
 ## Restoring the bootloader
 
 The included recovery images contain
-[Portare BIOS v1.4.1](https://github.com/portare-ch/BIOS/releases/tag/v1.4.1),
+[Portare BIOS v1.4.2](https://github.com/portare-ch/BIOS/releases/tag/v1.4.2),
 padded with zeros to the full 1 MiB partition size. Verify the included files
 before flashing:
 
